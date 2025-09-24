@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 env:
@@ -14,7 +14,7 @@ env:
   X_SCHEME: ${{ vars.X_SCHEME }}
   X_PROJ_DIR: ${{ vars.X_PROJ_DIR }}
   X_WORKSPACE_DIR: ${{ vars.X_WORKSPACE_DIR }}
-  
+
 jobs:
   test:
     name: Test
@@ -52,7 +52,8 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-      
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
     - name: Setup Ruby
       uses: ruby/setup-ruby@v1
       with:
@@ -86,7 +87,8 @@ jobs:
     steps:
         - name: Checkout
           uses: actions/checkout@v4
-      
+          with:
+            token: ${{ secrets.GITHUB_TOKEN }}
         - name: Setup Ruby
           uses: ruby/setup-ruby@v1
           with:
