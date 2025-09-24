@@ -134,7 +134,7 @@ platform :ios do
     UI.message("Creating PR from '#{release_branch}' to 'main' for version #{version}")
     
     create_pull_request(
-      repo: "rahul-gunjote/test-branching",
+      repo: "rahulgunjote/test-branching",
       title: "[ABCD-1234] Merge #{release_branch} into develop",
       head: release_branch,
       base: default_branch,
@@ -170,7 +170,7 @@ platform :ios do
     UI.message("New Version: #{new_version}")
     UI.message("Release Branch: #{release_branch}")
     
-    if sh("git ls-remote --heads git@github.com:rahul-gunjote/test-branching.git #{release_branch}") != ""
+    if sh("git ls-remote --heads git@github.com:rahulgunjote/test-branching.git #{release_branch}") != ""
       UI.user_error!("❌ Release branch '#{release_branch}' already exists! Please choose a different version or delete the existing branch.")
     end
     
@@ -197,7 +197,7 @@ platform :ios do
     # Step 8: Create pull request from temporary branch to release branch
     UI.message("Creating pull request from '#{temp_branch}' to '#{release_branch}'")
     create_pull_request(
-      repo: "rahul-gunjote/test-branching",
+      repo: "rahulgunjote/test-branching",
       title: "update app version to #{new_version}",
       head: temp_branch,
       base: release_branch,
