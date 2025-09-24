@@ -3,6 +3,15 @@ name: Release Cut
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  GITHUB_PULL_REQUEST_API_TOKEN: ${{ secrets.PULL_REQUEST_API_TOKEN }}
+  X_SCHEME: ${{ vars.X_SCHEME }}
+  X_PROJ_DIR: ${{ vars.X_PROJ_DIR }}
+  X_WORKSPACE_DIR: ${{ vars.X_WORKSPACE_DIR }}
 
 jobs:
   release-cut:
