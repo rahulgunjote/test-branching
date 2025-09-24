@@ -1,0 +1,194 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Description of what the lane does"
+  lane :custom_lane do
+    # add actions here: https://docs.fastlane.tools/actions
+  end
+
+  desc "Run all tests"
+  lane :test do
+    run_tests(
+      workspace: "SampleiOSApp.xcworkspace",
+      scheme: "SampleiOSApp",
+      device: "iPhone 15",
+      clean: true
+    )
+  end
+
+  desc "Build the app"
+  lane :build do
+    build_app(
+      workspace: "SampleiOSApp.xcworkspace",
+      scheme: "SampleiOSApp",
+      export_method: "development",
+      output_directory: "./build",
+      clean: true
+    )
+  end
+
+  desc "Build and test the app"
+  lane :build_and_test do
+    test
+    build
+  end
+
+  desc "Take screenshots"
+  lane :screenshots do
+    capture_screenshots(
+      workspace: "SampleiOSApp.xcworkspace",
+      scheme: "SampleiOSApp"
+    )
+  end
+
+  desc "Deploy to TestFlight"
+  lane :beta do
+    build_app(
+      workspace: "SampleiOSApp.xcworkspace",
+      scheme: "SampleiOSApp",
+      export_method: "app-store",
+      clean: true
+    )
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      skip_submission: true
+    )
+  end
+
+  desc "Deploy to App Store"
+  lane :release do
+    build_app(
+      workspace: "SampleiOSApp.xcworkspace",
+      scheme: "SampleiOSApp",
+      export_method: "app-store",
+      clean: true
+    )
+    upload_to_app_store(
+      skip_screenshots: true,
+      skip_metadata: true,
+      force: true
+    )
+  end
+
+  desc "Increment build number"
+  lane :increment_build do
+    increment_build_number(
+      xcodeproj: "SampleiOSApp.xcodeproj"
+    )
+  end
+
+  desc "Increment version number"
+  lane :increment_version do
+    # increment_version_number(
+    #   xcodeproj: "SampleiOSApp.xcodeproj"
+    # )
+    increment_version_number(bump_type: "minor")
+  end
+
+  desc "Setup code signing with match"
+  lane :setup_signing do
+    match(
+      type: "development",
+      readonly: true
+    )
+    match(
+      type: "appstore",
+      readonly: true
+    )
+  end
+
+  desc "Refresh provisioning profiles"
+  lane :refresh_profiles do
+    match(
+      type: "development",
+      force_for_new_devices: true
+    )
+  end
+  
+  desc "Cut release with new release branch"
+  lane :cut_release do
+    default_branch = "main"
+    UI.message("🎯 Starting release cut")
+    
+    # Checkout default branch
+    sh "git fetch --no-tags origin +refs/heads/#{default_branch}:refs/remotes/origin/#{default_branch}"
+    sh "git checkout -B #{default_branch} origin/#{default_branch}"
+    UI.message("✅ Checked out #{default_branch} branch")
+    
+    # Calculate new version
+    UI.message("Calculating new version by bumping minor version")
+    increment_version_number(bump_type: "minor")
+    
+    # Get the calculated version
+    new_version = get_version_number(
+      xcodeproj: ENV['X_PROJ_DIR']  ,
+      target: ENV['X_SCHEME'],
+      configuration: "Release"
+    )
+    
+    # Create release branch in format "test_rls/v*"
+    release_branch = "rls/v#{new_version}"
+    UI.message("New Version: #{new_version}")
+    UI.message("Release Branch: #{release_branch}")
+    
+    if sh("git ls-remote --heads git@github.com:rahul-gunjote_xero/test-release-branching.git #{release_branch}") != ""
+      UI.user_error!("❌ Release branch '#{release_branch}' already exists! Please choose a different version or delete the existing branch.")
+    end
+    
+    UI.message("Creating release branch '#{release_branch}' from '#{default_branch}'")
+    sh "git checkout -B #{release_branch} #{default_branch}"
+    
+    # Create temporary branch from release branch
+    temp_branch = "temp_update_version_to_#{new_version}"
+    UI.message("Creating temporary branch '#{temp_branch}' from '#{release_branch}'")
+    sh "git checkout -B #{temp_branch} #{release_branch}"
+    
+    # Update version in temporary branch
+    UI.message("Updating version in temporary branch")
+    sh "git add ../*/Info.plist"
+    # sh "git add ../*/Info-Development.plist"
+    sh "git commit -m '[XBMIOS-1147] Update app version to #{new_version}'"
+    
+    sh "git push -u origin #{release_branch}"
+    UI.success("✅ Release branch '#{release_branch}' pushed to origin")
+
+    sh "git push -u origin #{temp_branch}"
+    UI.success("✅ Temporary branch '#{temp_branch}' pushed to origin")
+
+    # Step 8: Create pull request from temporary branch to release branch
+    UI.message("Creating pull request from '#{temp_branch}' to '#{release_branch}'")
+    create_pull_request(
+      repo: "rahul-gunjote_xero/test-release-branching",
+      title: "update app version to #{new_version}",
+      head: temp_branch,
+      base: release_branch,
+      api_url: "https://api.github.com",
+      api_token: ENV["GITHUB_PULL_REQUEST_API_TOKEN"],
+      labels: "merge_to_trigger_release"
+    )
+    
+    # UI.success("✅ Pull request created from '#{temp_branch}' to '#{release_branch}'")
+    UI.success("🎉 Release cut completed!")
+  end
+
+  # Error handling
+  error do |lane, exception|
+    # Send error notification or log
+    puts "Lane #{lane} failed with exception: #{exception}"
+  end
+end
