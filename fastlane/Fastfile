@@ -170,7 +170,7 @@ platform :ios do
     UI.message("New Version: #{new_version}")
     UI.message("Release Branch: #{release_branch}")
     
-    if sh("git ls-remote --heads git@github.com:rahulgunjote/test-branching.git #{release_branch}") != ""
+    if sh("git ls-remote --heads https://github.com/rahulgunjote/test-branching.git #{release_branch}") != ""
       UI.user_error!("❌ Release branch '#{release_branch}' already exists! Please choose a different version or delete the existing branch.")
     end
     
