@@ -133,15 +133,60 @@ platform :ios do
     
     UI.message("Creating PR from '#{release_branch}' to '#{default_branch}' for version #{version}")
     
-    # Ensure we have the latest changes
-    sh "git fetch origin"
+    # Debug: Show current git status
+    UI.message("Current branch: #{sh('git rev-parse --abbrev-ref HEAD').strip}")
+    UI.message("Current commit: #{sh('git rev-parse HEAD').strip}")
+    
+    # Ensure we have the latest changes and all branches
+    sh "git fetch origin --all"
+    
+    # Debug: Show available branches
+    UI.message("Available branches:")
+    sh "git branch -a"
+    
+    # Verify that both branches exist
+    begin
+      sh "git rev-parse --verify origin/#{default_branch}"
+      UI.message("✅ Found origin/#{default_branch}")
+    rescue => e
+      UI.user_error!("❌ Could not find origin/#{default_branch}: #{e.message}")
+    end
+    
+    begin
+      sh "git rev-parse --verify #{release_branch}"
+      UI.message("✅ Found #{release_branch}")
+    rescue => e
+      UI.user_error!("❌ Could not find #{release_branch}: #{e.message}")
+    end
     
     # Find the common ancestor between release branch and default branch
-    common_ancestor = sh("git merge-base origin/#{default_branch} #{release_branch}").strip
-    UI.message("Common ancestor: #{common_ancestor}")
+    begin
+      common_ancestor = sh("git merge-base origin/#{default_branch} #{release_branch}").strip
+      UI.message("Common ancestor: #{common_ancestor}")
+    rescue => e
+      UI.message("⚠️ Could not find common ancestor using merge-base, trying alternative approach...")
+      # Alternative: use the merge-base of the current branch with main
+      begin
+        common_ancestor = sh("git merge-base origin/#{default_branch} HEAD").strip
+        UI.message("Using alternative common ancestor: #{common_ancestor}")
+      rescue => e2
+        UI.user_error!("❌ Could not find common ancestor using any method: #{e.message} | #{e2.message}")
+      end
+    end
     
     # Get commits that are in release branch but not in default branch
-    new_commits = sh("git rev-list #{common_ancestor}..#{release_branch} --reverse").strip.split("\n")
+    begin
+      new_commits = sh("git rev-list #{common_ancestor}..#{release_branch} --reverse").strip.split("\n")
+    rescue => e
+      UI.message("⚠️ Could not get commit list using common ancestor, trying direct comparison...")
+      # Alternative: get commits that are in release branch but not in main
+      begin
+        new_commits = sh("git rev-list origin/#{default_branch}..#{release_branch} --reverse").strip.split("\n")
+        UI.message("Using direct comparison method")
+      rescue => e2
+        UI.user_error!("❌ Could not get commit list using any method: #{e.message} | #{e2.message}")
+      end
+    end
     
     if new_commits.empty? || (new_commits.length == 1 && new_commits[0].empty?)
       UI.message("No new commits found in release branch. Nothing to cherry-pick.")
