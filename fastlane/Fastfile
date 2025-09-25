@@ -260,6 +260,12 @@ platform :ios do
     if commits.empty?
       UI.message("No new commits found in #{release_branch} compared to #{default_branch}. Nothing to do.")
       return
+    else
+      UI.message("Found #{commits.length} commit(s) to cherry-pick:")
+      commits.each_with_index do |commit, index|
+        commit_info = sh("git log --format='%h %s' -1 #{commit}").strip
+        UI.message("  #{index + 1}. #{commit_info}")
+      end
     end
 
     cherry_pick_branch = "sync-release-#{release_version}-#{Time.now.utc.strftime('%Y%m%d%H%M%S')}"
