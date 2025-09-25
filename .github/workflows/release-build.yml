@@ -2,7 +2,7 @@ name: Release Build
 
 on:
   push:
-    branches: [ rls/* ]
+    branches: [ release/* ]
   workflow_dispatch:
 
 permissions:
