@@ -259,7 +259,7 @@ platform :ios do
     UI.message("Creating pull request from '#{temp_branch}' to '#{release_branch}'")
     create_pull_request(
       repo: "rahulgunjote/test-branching",
-      title: "update app version to #{new_version}",
+      title: "Release cut #{new_version}",
       head: temp_branch,
       base: release_branch,
       api_url: "https://api.github.com",
