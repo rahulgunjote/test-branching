@@ -237,6 +237,66 @@ platform :ios do
     UI.success("✅ Pull request created with #{cherry_picked_commits.length} cherry-picked commits")
   end
 
+  desc "Create pull request from release branch to develop (streamlined)"
+  lane :create_pr_from_release_branch_v2 do
+    default_branch = "main"
+    repo_full_name = "rahulgunjote/test-branching"
+    release_branch = sh("git rev-parse --abbrev-ref HEAD").strip
+
+    ensure_git_branch(branch: release_branch)
+    ensure_git_status_clean
+
+    UI.message("Preparing cherry-pick branch from '#{release_branch}' into '#{default_branch}'")
+
+    sh("git fetch origin #{default_branch}")
+
+    commit_range = "origin/#{default_branch}..#{release_branch}"
+    commits = sh("git rev-list --no-merges --reverse #{commit_range}").strip.split("\n").reject(&:empty?)
+
+    if commits.empty?
+      UI.message("No new commits found in #{release_branch} compared to #{default_branch}. Nothing to do.")
+      return
+    end
+
+    cherry_pick_branch = "#{release_branch}-sync-#{Time.now.utc.strftime('%Y%m%d%H%M%S')}"
+    UI.message("Creating branch '#{cherry_pick_branch}' based on origin/#{default_branch}")
+
+    sh("git checkout origin/#{default_branch}")
+    sh("git checkout -B #{cherry_pick_branch}")
+
+    commits.each do |commit|
+      UI.message("Cherry-picking #{commit}...")
+      begin
+        sh("git cherry-pick #{commit}")
+      rescue => e
+        sh("git cherry-pick --abort")
+        UI.user_error!("Failed to cherry-pick commit #{commit}: #{e.message}")
+      end
+    end
+
+    sh("git push -u origin #{cherry_pick_branch}")
+
+    pr_title = "Sync #{release_branch} into #{default_branch}"
+    pr_body = "Cherry-picked #{commits.length} commit(s) from #{release_branch}:\n\n"
+    commits.each_with_index do |commit, index|
+      summary = sh("git log --oneline -1 #{commit}").strip
+      pr_body << "#{index + 1}. #{summary}\n"
+    end
+
+    create_pull_request(
+      repo: repo_full_name,
+      title: pr_title,
+      head: cherry_pick_branch,
+      base: default_branch,
+      body: pr_body,
+      api_url: "https://api.github.com",
+      api_token: ENV["GITHUB_PULL_REQUEST_API_TOKEN"],
+      labels: ["must_merge_before_next_release"]
+    )
+
+    UI.success("Pull request created for #{commits.length} commit(s)")
+  end
+
   desc "Cut release with new release branch"
   lane :cut_release do
     default_branch = "main"
