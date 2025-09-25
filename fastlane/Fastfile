@@ -140,25 +140,6 @@ platform :ios do
     # Ensure we have the latest changes and all branches
     sh "git fetch --all"
     
-    # Debug: Show available branches
-    UI.message("Available branches:")
-    sh "git branch -a"
-    
-    # Verify that both branches exist
-    begin
-      sh "git rev-parse --verify origin/#{default_branch}"
-      UI.message("✅ Found origin/#{default_branch}")
-    rescue => e
-      UI.user_error!("❌ Could not find origin/#{default_branch}: #{e.message}")
-    end
-    
-    begin
-      sh "git rev-parse --verify #{release_branch}"
-      UI.message("✅ Found #{release_branch}")
-    rescue => e
-      UI.user_error!("❌ Could not find #{release_branch}: #{e.message}")
-    end
-    
     # Get commits that are in release branch but not in default branch
     # Use direct comparison instead of merge-base to avoid common ancestor issues
     begin
@@ -194,9 +175,28 @@ platform :ios do
     sh "git checkout origin/#{default_branch}"
     sh "git checkout -B #{cherry_pick_branch}"
     
-    # Cherry-pick each commit
-    cherry_picked_commits = []
+    # Filter out merge commits and cherry-pick only regular commits
+    regular_commits = []
     new_commits.each do |commit|
+      # Check if the commit is a merge commit by counting parents
+      parent_count = sh("git rev-list --count #{commit}^..#{commit}").strip.to_i
+      if parent_count > 1
+        UI.message("Skipping merge commit: #{commit}")
+      else
+        regular_commits << commit
+      end
+    end
+    
+    if regular_commits.empty?
+      UI.message("No regular commits found to cherry-pick (only merge commits)")
+      return
+    end
+    
+    UI.message("Cherry-picking #{regular_commits.length} regular commits (skipped #{new_commits.length - regular_commits.length} merge commits)")
+    
+    # Cherry-pick each regular commit
+    cherry_picked_commits = []
+    regular_commits.each do |commit|
       begin
         sh "git cherry-pick #{commit}"
         cherry_picked_commits << commit
