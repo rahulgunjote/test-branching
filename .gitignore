@@ -99,6 +99,7 @@ iOSInjectionProject/
 
 # Bundler
 vendor/bundle
+.bundle/
 
 # Add other items specific to your project here
 fastlane/.env
