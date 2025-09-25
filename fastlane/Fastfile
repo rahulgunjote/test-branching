@@ -138,7 +138,7 @@ platform :ios do
     UI.message("Current commit: #{sh('git rev-parse HEAD').strip}")
     
     # Ensure we have the latest changes and all branches
-    sh "git fetch origin --all"
+    sh "git fetch --all"
     
     # Debug: Show available branches
     UI.message("Available branches:")
