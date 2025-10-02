@@ -2,7 +2,7 @@ name: Release Build
 
 on:
   push:
-    branches: [ release/* ]
+    branches: [ releases/* ]
   workflow_dispatch:
 
 permissions:
@@ -100,7 +100,22 @@ jobs:
           run: |
             bundle install
         
+        - name: Get triggering commits
+          id: get_commits
+          run: |
+            if [ "${{ github.event_name }}" = "push" ]; then
+              # For push events, get commits from the push
+              COMMITS=$(echo '${{ toJson(github.event.commits) }}' | jq -r '.[].id' | tr '\n' ',' | sed 's/,$//')
+            else
+              # For workflow_dispatch, get the latest commit
+              COMMITS=$(git rev-parse HEAD)
+            fi
+            echo "commits=$COMMITS" >> $GITHUB_OUTPUT
+            echo "Triggering commits: $COMMITS"
+        
         - name: Create pull request
+          env:
+            TRIGGER_COMMITS: ${{ steps.get_commits.outputs.commits }}
           run: |
             bundle exec fastlane create_pr_from_release_branch_v2
     

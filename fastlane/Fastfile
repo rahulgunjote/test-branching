@@ -254,11 +254,23 @@ platform :ios do
 
     sh("git fetch origin #{default_branch}")
 
-    commit_range = "origin/#{default_branch}..#{release_branch}"
-    commits = sh("git rev-list --no-merges --reverse #{commit_range}").strip.split("\n").reject(&:empty?)
+    # Check if specific commits were provided via environment variable
+    trigger_commits = ENV["TRIGGER_COMMITS"]
+    
+    if trigger_commits && !trigger_commits.empty?
+      # Use the specific commits passed from the workflow
+      UI.message("Using commits provided by workflow trigger")
+      commits = trigger_commits.split(',').map(&:strip).reject(&:empty?)
+      UI.message("Trigger commits: #{commits.join(', ')}")
+    else
+      # Fallback to discovering commits between branches
+      UI.message("No specific commits provided, discovering commits between branches")
+      commit_range = "origin/#{default_branch}..#{release_branch}"
+      commits = sh("git rev-list --no-merges --reverse #{commit_range}").strip.split("\n").reject(&:empty?)
+    end
 
     if commits.empty?
-      UI.message("No new commits found in #{release_branch} compared to #{default_branch}. Nothing to do.")
+      UI.message("No commits found to cherry-pick. Nothing to do.")
       return
     else
       UI.message("Found #{commits.length} commit(s) to cherry-pick:")
@@ -268,7 +280,7 @@ platform :ios do
       end
     end
 
-    cherry_pick_branch = "sync-release-#{release_version}-#{Time.now.utc.strftime('%Y%m%d%H%M%S')}"
+    cherry_pick_branch = "temp-sync-release-#{release_version}-to-#{default_branch}-#{Time.now.utc.strftime('%Y%m%d%H%M%S')}"
     UI.message("Creating branch '#{cherry_pick_branch}' based on origin/#{default_branch}")
 
     sh("git checkout origin/#{default_branch}")
@@ -286,7 +298,7 @@ platform :ios do
 
     sh("git push -u origin #{cherry_pick_branch}")
 
-    pr_title = "Sync #{release_branch} into #{default_branch}"
+    pr_title = "[XBMIOS-1147] Sync #{release_branch} into #{default_branch}"
     pr_body = "Cherry-picked #{commits.length} commit(s) from #{release_branch}:\n\n"
     commits.each_with_index do |commit, index|
       summary = sh("git log --oneline -1 #{commit}").strip
