@@ -341,7 +341,7 @@ platform :ios do
     )
 
     # Create release branch in format "release/v*"
-    release_branch = "release/v#{new_version}"
+    release_branch = "releases/v#{new_version}"
     UI.message("New Version: #{new_version}")
     UI.message("Release Branch: #{release_branch}")
     
