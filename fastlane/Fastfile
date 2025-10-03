@@ -254,14 +254,18 @@ platform :ios do
     non_merge_commits = []
     commits.each do |commit|
       begin
-        # Check if commit has more than one parent (merge commit)
-        parent_count = sh("git rev-list --count #{commit}^..#{commit} 2>/dev/null || echo '1'").strip.to_i
+        # Check the number of parent commits (merge commits have 2+ parents)
+        parents = sh("git rev-parse #{commit}^ 2>/dev/null | wc -l").strip.to_i
+        UI.message("Commit #{commit} has #{parents} parent(s)")
         
-        if parent_count == 1
+        # Alternative: use git cat-file to get parent count
+        parent_line = sh("git cat-file -p #{commit} | grep '^parent' | wc -l").strip.to_i
+        
+        if parent_line <= 1
           non_merge_commits << commit
-          UI.message("  ✓ #{commit} - regular commit")
+          UI.message("  ✓ #{commit} - regular commit (#{parent_line} parent)")
         else
-          UI.message("  ✗ #{commit} - merge commit (skipped)")
+          UI.message("  ✗ #{commit} - merge commit (#{parent_line} parents, skipped)")
         end
       rescue => e
         UI.message("  ? #{commit} - could not determine (skipped): #{e.message}")
@@ -270,7 +274,7 @@ platform :ios do
     
     filtered_commits = non_merge_commits.join(',')
     UI.success("Filtered #{non_merge_commits.length} regular commits from #{commits.length} total")
-    sh "echo \"commits=$COMMITS\" >> $GITHUB_OUTPUT" if is_ci
+    sh "echo \"commits=$filtered_commits\" >> $GITHUB_OUTPUT" if is_ci
     filtered_commits
   end
 
