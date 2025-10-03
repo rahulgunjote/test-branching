@@ -254,27 +254,31 @@ platform :ios do
     non_merge_commits = []
     commits.each do |commit|
       begin
-        # Check the number of parent commits (merge commits have 2+ parents)
-        parents = sh("git rev-parse #{commit}^ 2>/dev/null | wc -l").strip.to_i
-        UI.message("Commit #{commit} has #{parents} parent(s)")
+        # First verify the commit exists locally
+        commit_exists = sh("git cat-file -t #{commit} 2>/dev/null || echo 'missing'").strip
         
-        # Alternative: use git cat-file to get parent count
-        parent_line = sh("git cat-file -p #{commit} | grep '^parent' | wc -l").strip.to_i
+        if commit_exists == "missing"
+          UI.message("  ? #{commit} - commit not found locally (skipped)")
+          next
+        end
         
-        if parent_line <= 1
+        # Count parent commits using git cat-file (merge commits have 2+ parents)
+        parent_count = sh("git cat-file -p #{commit} | grep '^parent' | wc -l 2>/dev/null || echo '0'").strip.to_i
+        
+        if parent_count <= 1
           non_merge_commits << commit
-          UI.message("  ✓ #{commit} - regular commit (#{parent_line} parent)")
+          UI.message("  ✓ #{commit} - regular commit (#{parent_count} parent)")
         else
-          UI.message("  ✗ #{commit} - merge commit (#{parent_line} parents, skipped)")
+          UI.message("  ✗ #{commit} - merge commit (#{parent_count} parents, skipped)")
         end
       rescue => e
-        UI.message("  ? #{commit} - could not determine (skipped): #{e.message}")
+        UI.message("  ? #{commit} - error checking commit (skipped): #{e.message}")
       end
     end
     
     filtered_commits = non_merge_commits.join(',')
     UI.success("Filtered #{non_merge_commits.length} regular commits from #{commits.length} total")
-    sh "echo \"commits=$filtered_commits\" >> $GITHUB_OUTPUT" if is_ci
+    sh "echo \"commits=#{filtered_commits}\" >> $GITHUB_OUTPUT" if is_ci
     filtered_commits
   end
 

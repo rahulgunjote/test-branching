@@ -109,6 +109,9 @@ jobs:
         - name: Get triggering commits
           id: get_commits
           run: |
+            # Ensure we have all refs
+            git fetch origin
+            
             if [ "${{ github.event_name }}" = "push" ]; then
               # For push events, get commits from the push
               TRIGGER_COMMITS=$(echo '${{ toJson(github.event.commits) }}' | jq -r '.[].id' | tr '\n' ',' | sed 's/,$//')
