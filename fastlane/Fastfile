@@ -294,6 +294,17 @@ platform :ios do
     )
     UI.message("Release version: #{release_version}")
     ensure_git_branch(branch: release_branch)
+    
+    # Debug: Check git status before ensuring clean
+    UI.message("Checking git status...")
+    git_status = sh("git status --porcelain")
+    if !git_status.empty?
+      UI.important("Repository has uncommitted changes:")
+      UI.message(git_status)
+      UI.message("Full git status:")
+      sh("git status")
+    end
+    
     ensure_git_status_clean
 
     UI.message("Preparing cherry-pick branch from '#{release_branch}' into '#{default_branch}'")
