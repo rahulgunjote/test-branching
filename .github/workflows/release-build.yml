@@ -95,6 +95,7 @@ jobs:
           with:
             ref: ${{ env.RELEASE_BRANCH }}
             token: ${{ secrets.GITHUB_TOKEN }}
+            fetch-depth: 0
             
         - name: Setup Ruby
           uses: ruby/setup-ruby@v1
@@ -111,7 +112,6 @@ jobs:
           run: |
             # Ensure we have all refs
             git fetch origin
-            
             if [ "${{ github.event_name }}" = "push" ]; then
               # For push events, get commits from the push
               TRIGGER_COMMITS=$(echo '${{ toJson(github.event.commits) }}' | jq -r '.[].id' | tr '\n' ',' | sed 's/,$//')
