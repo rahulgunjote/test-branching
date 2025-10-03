@@ -103,6 +103,30 @@ Setup code signing with match
 
 Refresh provisioning profiles
 
+### ios create_pr_from_release_branch
+
+```sh
+[bundle exec] fastlane ios create_pr_from_release_branch
+```
+
+Create pull request from release branch to develop
+
+### ios filter_merge_commits
+
+```sh
+[bundle exec] fastlane ios filter_merge_commits
+```
+
+Filter out merge commits from a list of commit SHAs
+
+### ios create_pr_from_release_branch_v2
+
+```sh
+[bundle exec] fastlane ios create_pr_from_release_branch_v2
+```
+
+Create pull request from release branch to develop (streamlined)
+
 ### ios cut_release
 
 ```sh
