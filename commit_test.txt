@@ -4,3 +4,4 @@ v1.10.0 - Bug fix commit 6
 
 //New branch
 v1.10.0 - Bug fix commit 7
+v1.10.0 - Bug fix commit 8
