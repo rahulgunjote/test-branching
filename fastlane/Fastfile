@@ -100,171 +100,34 @@ platform :ios do
     increment_version_number(bump_type: "minor")
   end
 
-  desc "Setup code signing with match"
-  lane :setup_signing do
-    match(
-      type: "development",
-      readonly: true
-    )
-    match(
-      type: "appstore",
-      readonly: true
-    )
-  end
-
-  desc "Refresh provisioning profiles"
-  lane :refresh_profiles do
-    match(
-      type: "development",
-      force_for_new_devices: true
-    )
-  end
-  
-  desc "Create pull request from release branch to develop"
-  lane :create_pr_from_release_branch do
-    default_branch = "main"
-    release_branch = sh("git rev-parse --abbrev-ref HEAD").strip
-
-    version = get_version_number(
-      xcodeproj: ENV["X_PROJ_DIR"],
-      target: ENV["X_IPA_NAME"],
-      configuration: "Release"
-    )
-    
-    UI.message("Creating PR from '#{release_branch}' to '#{default_branch}' for version #{version}")
-    
-    # Debug: Show current git status
-    UI.message("Current branch: #{sh('git rev-parse --abbrev-ref HEAD').strip}")
-    UI.message("Current commit: #{sh('git rev-parse HEAD').strip}")
-    
-    # Ensure we have the latest changes and all branches
-    sh "git fetch --all"
-    
-    # Get commits that are in release branch but not in default branch
-    # Use direct comparison instead of merge-base to avoid common ancestor issues
-    begin
-      new_commits = sh("git rev-list origin/#{default_branch}..#{release_branch} --reverse").strip.split("\n")
-      UI.message("Using direct comparison method to find new commits")
-    rescue => e
-      UI.message("⚠️ Direct comparison failed, trying alternative approach...")
-      # Alternative: get commits that are in release branch but not in main using different syntax
-      begin
-        new_commits = sh("git log --oneline origin/#{default_branch}..#{release_branch} --reverse | cut -d' ' -f1").strip.split("\n")
-        UI.message("Using log-based comparison method")
-      rescue => e2
-        UI.user_error!("❌ Could not get commit list using any method: #{e.message} | #{e2.message}")
-      end
-    end
-    
-    if new_commits.empty? || (new_commits.length == 1 && new_commits[0].empty?)
-      UI.message("No new commits found in release branch. Nothing to cherry-pick.")
-      return
-    end
-    
-    UI.message("Found #{new_commits.length} new commits to cherry-pick:")
-    new_commits.each_with_index do |commit, index|
-      commit_message = sh("git log --oneline -1 #{commit}").strip
-      UI.message("  #{index + 1}. #{commit_message}")
-    end
-    
-    # Create a new branch for cherry-picked commits
-    cherry_pick_branch = "#{release_branch}-cherry-pick-#{Time.now.strftime('%Y%m%d%H%M%S')}"
-    UI.message("Creating cherry-pick branch: #{cherry_pick_branch}")
-    
-    # Checkout default branch and create new branch
-    sh "git checkout origin/#{default_branch}"
-    sh "git checkout -B #{cherry_pick_branch}"
-    
-    # Filter out merge commits and cherry-pick only regular commits
-    regular_commits = []
-    new_commits.each do |commit|
-      # Check if the commit is a merge commit by counting parents
-      parent_count = sh("git rev-list --count #{commit}^..#{commit}").strip.to_i
-      if parent_count > 1
-        UI.message("Skipping merge commit: #{commit}")
-      else
-        regular_commits << commit
-      end
-    end
-    
-    if regular_commits.empty?
-      UI.message("No regular commits found to cherry-pick (only merge commits)")
-      return
-    end
-    
-    UI.message("Cherry-picking #{regular_commits.length} regular commits (skipped #{new_commits.length - regular_commits.length} merge commits)")
-    
-    # Cherry-pick each regular commit
-    cherry_picked_commits = []
-    regular_commits.each do |commit|
-      begin
-        sh "git cherry-pick #{commit}"
-        cherry_picked_commits << commit
-        UI.message("✅ Cherry-picked commit: #{commit}")
-      rescue => e
-        UI.error("❌ Failed to cherry-pick commit #{commit}: #{e.message}")
-        # Continue with other commits even if one fails
-      end
-    end
-    
-    if cherry_picked_commits.empty?
-      UI.user_error!("No commits were successfully cherry-picked!")
-    end
-    
-    # Push the cherry-pick branch
-    sh "git push -u origin #{cherry_pick_branch}"
-    UI.message("✅ Cherry-pick branch '#{cherry_pick_branch}' pushed to origin")
-    
-    # Create PR from cherry-pick branch to default branch
-    pr_title = "[ABCD-1234] Cherry-pick commits from #{release_branch} to #{default_branch}"
-    pr_body = "Cherry-picked #{cherry_picked_commits.length} commits from #{release_branch}:\n\n"
-    cherry_picked_commits.each_with_index do |commit, index|
-      commit_message = sh("git log --oneline -1 #{commit}").strip
-      pr_body += "#{index + 1}. #{commit_message}\n"
-    end
-    
-    create_pull_request(
-      repo: "rahulgunjote/test-branching",
-      title: pr_title,
-      head: cherry_pick_branch,
-      base: default_branch,
-      body: pr_body,
-      api_url: "https://api.github.com",
-      api_token: ENV["GITHUB_PULL_REQUEST_API_TOKEN"],
-      labels: ["must_merge_before_next_release"]
-    )
-    
-    UI.success("✅ Pull request created with #{cherry_picked_commits.length} cherry-picked commits")
-  end
-
   desc "Filter out merge commits from a list of commit SHAs"
   lane :filter_merge_commits do |options|
     commits_input = options[:commits] || ""
-    
+
     if commits_input.empty?
       UI.message("No commits provided to filter")
       exit 0
     end
 
     UI.message("Filtering merge commits from provided commits")
-    
+
     # Split commits by comma and filter out merge commits
     commits = commits_input.split(',').map(&:strip).reject(&:empty?)
-    
+
     non_merge_commits = []
     commits.each do |commit|
       begin
         # First verify the commit exists locally
         commit_exists = sh("git cat-file -t #{commit} 2>/dev/null || echo 'missing'").strip
-        
+
         if commit_exists == "missing"
           UI.message("  ? #{commit} - commit not found locally (skipped)")
           next
         end
-        
+
         # Count parent commits using git cat-file (merge commits have 2+ parents)
         parent_count = sh("git cat-file -p #{commit} | grep '^parent' | wc -l 2>/dev/null || echo '0'").strip.to_i
-        
+
         if parent_count <= 1
           non_merge_commits << commit
           UI.message("  ✓ #{commit} - regular commit (#{parent_count} parent)")
@@ -275,7 +138,7 @@ platform :ios do
         UI.message("  ? #{commit} - error checking commit (skipped): #{e.message}")
       end
     end
-    
+
     filtered_commits = non_merge_commits.join(',')
     UI.success("Filtered #{non_merge_commits.length} regular commits from #{commits.length} total")
     sh "echo \"commits=#{filtered_commits}\" >> $GITHUB_OUTPUT" if is_ci
@@ -294,6 +157,16 @@ platform :ios do
     )
     UI.message("Release version: #{release_version}")
     ensure_git_branch(branch: release_branch)
+
+    # Discard any uncommitted changes before switching branches
+    UI.message("Checking for uncommitted changes...")
+    git_status = sh("git status --porcelain").strip
+    if !git_status.empty?
+      UI.important("Found uncommitted changes, discarding them...")
+      sh("git reset --hard HEAD")
+      sh("git clean -fd")
+      UI.success("Repository cleaned")
+    end
 
     UI.message("Preparing cherry-pick branch from '#{release_branch}' into '#{default_branch}'")
 
@@ -367,16 +240,16 @@ platform :ios do
   lane :cut_release do
     default_branch = "main"
     UI.message("🎯 Starting release cut")
-    
+
     # Checkout default branch
     sh "git fetch --no-tags origin +refs/heads/#{default_branch}:refs/remotes/origin/#{default_branch}"
     sh "git checkout -B #{default_branch} origin/#{default_branch}"
     UI.message("✅ Checked out #{default_branch} branch")
-    
+
     # Calculate new version
     UI.message("Calculating new version by bumping minor version")
     increment_version_number(bump_type: "minor")
-    
+
     # Get the calculated version
     new_version = get_version_number(
       xcodeproj: ENV['X_PROJ_DIR']  ,
@@ -388,25 +261,25 @@ platform :ios do
     release_branch = "releases/v#{new_version}"
     UI.message("New Version: #{new_version}")
     UI.message("Release Branch: #{release_branch}")
-    
+
     if sh("git ls-remote --heads https://github.com/rahulgunjote/test-branching.git #{release_branch}") != ""
       UI.user_error!("❌ Release branch '#{release_branch}' already exists! Please choose a different version or delete the existing branch.")
     end
-    
+
     UI.message("Creating release branch '#{release_branch}' from '#{default_branch}'")
     sh "git checkout -B #{release_branch} #{default_branch}"
-    
+
     # Create temporary branch from release branch
     temp_branch = "temp_update_version_to_#{new_version}"
     UI.message("Creating temporary branch '#{temp_branch}' from '#{release_branch}'")
     sh "git checkout -B #{temp_branch} #{release_branch}"
-    
+
     # Update version in temporary branch
     UI.message("Updating version in temporary branch")
     sh "git add ../*/Info.plist"
     # sh "git add ../*/Info-Development.plist"
     sh "git commit -m '[ABCD-1234] Update app version to #{new_version}'"
-    
+
     sh "git push -u origin #{release_branch}"
     UI.success("✅ Release branch '#{release_branch}' pushed to origin")
 
@@ -424,7 +297,7 @@ platform :ios do
       api_token: ENV["GITHUB_PULL_REQUEST_API_TOKEN"],
       labels: "merge_to_trigger_release"
     )
-    
+
     # UI.success("✅ Pull request created from '#{temp_branch}' to '#{release_branch}'")
     UI.success("🎉 Release cut completed!")
   end
