@@ -1,25 +1,6 @@
-# This file contains the fastlane.tools configuration
-# You can find the documentation at https://docs.fastlane.tools
-#
-# For a list of all available actions, check out
-#
-#     https://docs.fastlane.tools/actions
-#
-# For a list of all available plugins, check out
-#
-#     https://docs.fastlane.tools/plugins/available-plugins
-#
-
-# Uncomment the line if you want fastlane to automatically update itself
-# update_fastlane
-
 default_platform(:ios)
 
 platform :ios do
-  desc "Description of what the lane does"
-  lane :custom_lane do
-    # add actions here: https://docs.fastlane.tools/actions
-  end
 
   desc "Run all tests"
   lane :test do
@@ -48,43 +29,6 @@ platform :ios do
     build
   end
 
-  desc "Take screenshots"
-  lane :screenshots do
-    capture_screenshots(
-      workspace: "SampleiOSApp.xcworkspace",
-      scheme: "SampleiOSApp"
-    )
-  end
-
-  desc "Deploy to TestFlight"
-  lane :beta do
-    build_app(
-      workspace: "SampleiOSApp.xcworkspace",
-      scheme: "SampleiOSApp",
-      export_method: "app-store",
-      clean: true
-    )
-    upload_to_testflight(
-      skip_waiting_for_build_processing: true,
-      skip_submission: true
-    )
-  end
-
-  desc "Deploy to App Store"
-  lane :release do
-    build_app(
-      workspace: "SampleiOSApp.xcworkspace",
-      scheme: "SampleiOSApp",
-      export_method: "app-store",
-      clean: true
-    )
-    upload_to_app_store(
-      skip_screenshots: true,
-      skip_metadata: true,
-      force: true
-    )
-  end
-
   desc "Increment build number"
   lane :increment_build do
     increment_build_number(
@@ -98,6 +42,123 @@ platform :ios do
     #   xcodeproj: "SampleiOSApp.xcodeproj"
     # )
     increment_version_number(bump_type: "minor")
+  end
+
+  desc "Create pull request from release branch to develop"
+  lane :create_pr_from_release_branch do
+    default_branch = "main"
+    release_branch = sh("git rev-parse --abbrev-ref HEAD").strip
+
+    version = get_version_number(
+      xcodeproj: ENV["X_PROJ_DIR"],
+      target: ENV["X_IPA_NAME"],
+      configuration: "Release"
+    )
+    
+    UI.message("Creating PR from '#{release_branch}' to '#{default_branch}' for version #{version}")
+    
+    # Debug: Show current git status
+    UI.message("Current branch: #{sh('git rev-parse --abbrev-ref HEAD').strip}")
+    UI.message("Current commit: #{sh('git rev-parse HEAD').strip}")
+    
+    # Ensure we have the latest changes and all branches
+    sh "git fetch --all"
+    
+    # Get commits that are in release branch but not in default branch
+    # Use direct comparison instead of merge-base to avoid common ancestor issues
+    begin
+      new_commits = sh("git rev-list origin/#{default_branch}..#{release_branch} --reverse").strip.split("\n")
+      UI.message("Using direct comparison method to find new commits")
+    rescue => e
+      UI.message("⚠️ Direct comparison failed, trying alternative approach...")
+      # Alternative: get commits that are in release branch but not in main using different syntax
+      begin
+        new_commits = sh("git log --oneline origin/#{default_branch}..#{release_branch} --reverse | cut -d' ' -f1").strip.split("\n")
+        UI.message("Using log-based comparison method")
+      rescue => e2
+        UI.user_error!("❌ Could not get commit list using any method: #{e.message} | #{e2.message}")
+      end
+    end
+    
+    if new_commits.empty? || (new_commits.length == 1 && new_commits[0].empty?)
+      UI.message("No new commits found in release branch. Nothing to cherry-pick.")
+      return
+    end
+    
+    UI.message("Found #{new_commits.length} new commits to cherry-pick:")
+    new_commits.each_with_index do |commit, index|
+      commit_message = sh("git log --oneline -1 #{commit}").strip
+      UI.message("  #{index + 1}. #{commit_message}")
+    end
+    
+    # Create a new branch for cherry-picked commits
+    cherry_pick_branch = "#{release_branch}-cherry-pick-#{Time.now.strftime('%Y%m%d%H%M%S')}"
+    UI.message("Creating cherry-pick branch: #{cherry_pick_branch}")
+    
+    # Checkout default branch and create new branch
+    sh "git checkout origin/#{default_branch}"
+    sh "git checkout -B #{cherry_pick_branch}"
+    
+    # Filter out merge commits and cherry-pick only regular commits
+    regular_commits = []
+    new_commits.each do |commit|
+      # Check if the commit is a merge commit by counting parents
+      parent_count = sh("git rev-list --count #{commit}^..#{commit}").strip.to_i
+      if parent_count > 1
+        UI.message("Skipping merge commit: #{commit}")
+      else
+        regular_commits << commit
+      end
+    end
+    
+    if regular_commits.empty?
+      UI.message("No regular commits found to cherry-pick (only merge commits)")
+      return
+    end
+    
+    UI.message("Cherry-picking #{regular_commits.length} regular commits (skipped #{new_commits.length - regular_commits.length} merge commits)")
+    
+    # Cherry-pick each regular commit
+    cherry_picked_commits = []
+    regular_commits.each do |commit|
+      begin
+        sh "git cherry-pick #{commit}"
+        cherry_picked_commits << commit
+        UI.message("✅ Cherry-picked commit: #{commit}")
+      rescue => e
+        UI.error("❌ Failed to cherry-pick commit #{commit}: #{e.message}")
+        # Continue with other commits even if one fails
+      end
+    end
+    
+    if cherry_picked_commits.empty?
+      UI.user_error!("No commits were successfully cherry-picked!")
+    end
+    
+    # Push the cherry-pick branch
+    sh "git push -u origin #{cherry_pick_branch}"
+    UI.message("✅ Cherry-pick branch '#{cherry_pick_branch}' pushed to origin")
+    
+    # Create PR from cherry-pick branch to default branch
+    pr_title = "[ABCD-1234] Cherry-pick commits from #{release_branch} to #{default_branch}"
+    pr_body = "Cherry-picked #{cherry_picked_commits.length} commits from #{release_branch}:\n\n"
+    cherry_picked_commits.each_with_index do |commit, index|
+      commit_message = sh("git log --oneline -1 #{commit}").strip
+      pr_body += "#{index + 1}. #{commit_message}\n"
+    end
+    
+    create_pull_request(
+      repo: "rahulgunjote/test-branching",
+      title: pr_title,
+      head: cherry_pick_branch,
+      base: default_branch,
+      body: pr_body,
+      api_url: "https://api.github.com",
+      api_token: ENV["GITHUB_PULL_REQUEST_API_TOKEN"],
+      labels: ["must_merge_before_next_release"]
+    )
+    
+    UI.success("✅ Pull request created with #{cherry_picked_commits.length} cherry-picked commits")
   end
 
   desc "Filter out merge commits from a list of commit SHAs"

@@ -91,13 +91,59 @@ build_and_test() {
     fi
 }
 
-# Function to deploy to TestFlight
-beta() {
-    print_status "Deploying to TestFlight..."
+# Function to cut a new release
+cut_release() {
+    print_status "Cutting a new release..."
     if command -v bundle &> /dev/null; then
-        bundle exec fastlane beta
+        bundle exec fastlane cut_release
     else
-        fastlane beta
+        fastlane cut_release
+    fi
+}
+
+# Function to create PR from release to main
+sync_release() {
+    print_status "Creating PR to sync release branch to main..."
+    if command -v bundle &> /dev/null; then
+        bundle exec fastlane create_pr_from_release_branch_v2
+    else
+        fastlane create_pr_from_release_branch_v2
+    fi
+}
+
+# Function to filter merge commits
+filter_commits() {
+    if [ -z "$2" ]; then
+        print_error "Please provide comma-separated commit hashes"
+        echo "Usage: $0 filter_commits \"hash1,hash2,hash3\""
+        exit 1
+    fi
+    
+    print_status "Filtering merge commits from: $2"
+    if command -v bundle &> /dev/null; then
+        bundle exec fastlane filter_merge_commits commits:"$2"
+    else
+        fastlane filter_merge_commits commits:"$2"
+    fi
+}
+
+# Function to increment version
+increment_version() {
+    print_status "Incrementing version number..."
+    if command -v bundle &> /dev/null; then
+        bundle exec fastlane increment_version
+    else
+        fastlane increment_version
+    fi
+}
+
+# Function to increment build
+increment_build() {
+    print_status "Incrementing build number..."
+    if command -v bundle &> /dev/null; then
+        bundle exec fastlane increment_build
+    else
+        fastlane increment_build
     fi
 }
 
@@ -115,22 +161,29 @@ lanes() {
 show_help() {
     echo "iOS Development Helper Script"
     echo ""
-    echo "Usage: $0 [COMMAND]"
+    echo "Usage: $0 [COMMAND] [OPTIONS]"
     echo ""
     echo "Available commands:"
-    echo "  setup           Setup the development environment"
-    echo "  test            Run all tests"
-    echo "  build           Build the app"
-    echo "  build_and_test  Build and test the app"
-    echo "  beta            Deploy to TestFlight"
-    echo "  lanes           Show available Fastlane lanes"
-    echo "  help            Show this help message"
+    echo "  setup              Setup the development environment"
+    echo "  test               Run all tests"
+    echo "  build              Build the app"
+    echo "  build_and_test     Build and test the app"
+    echo "  cut_release        Cut a new release (creates branch & PR)"
+    echo "  sync_release       Sync release branch to main (creates PR)"
+    echo "  filter_commits     Filter merge commits from a list"
+    echo "  increment_version  Bump the version number"
+    echo "  increment_build    Bump the build number"
+    echo "  lanes              Show available Fastlane lanes"
+    echo "  help               Show this help message"
     echo ""
     echo "Examples:"
     echo "  $0 setup"
     echo "  $0 test"
     echo "  $0 build_and_test"
-    echo "  $0 beta"
+    echo "  $0 cut_release"
+    echo "  $0 sync_release"
+    echo "  $0 filter_commits \"abc123,def456,ghi789\""
+    echo "  $0 increment_version"
 }
 
 # Main script logic
@@ -154,10 +207,25 @@ case "${1:-help}" in
         check_xcode
         build_and_test
         ;;
-    beta)
+    cut_release)
         check_macos
-        check_xcode
-        beta
+        cut_release
+        ;;
+    sync_release)
+        check_macos
+        sync_release
+        ;;
+    filter_commits)
+        check_macos
+        filter_commits "$@"
+        ;;
+    increment_version)
+        check_macos
+        increment_version
+        ;;
+    increment_build)
+        check_macos
+        increment_build
         ;;
     lanes)
         lanes
