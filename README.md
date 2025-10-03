@@ -169,6 +169,22 @@ bundle exec fastlane increment_build
 bundle exec fastlane increment_version
 ```
 
+### Release Management
+
+```bash
+# Cut a new release branch (bumps version, creates branch and PR)
+bundle exec fastlane cut_release
+
+# Create PR to sync release branch back to main (legacy)
+bundle exec fastlane create_pr_from_release_branch
+
+# Create PR to sync release branch back to main (streamlined, supports specific commits)
+bundle exec fastlane create_pr_from_release_branch_v2
+
+# Filter merge commits from a comma-separated list
+bundle exec fastlane filter_merge_commits commits:"commit1,commit2,commit3"
+```
+
 ### Code Signing
 
 ```bash
@@ -188,35 +204,104 @@ bundle exec fastlane screenshots
 
 ## GitHub Actions CI/CD
 
-The project includes a GitHub Actions workflow (`.github/workflows/ios.yml`) that:
+The project includes GitHub Actions workflows for automated release management:
 
-1. **Runs on every push and PR**: Automatically tests the app
-2. **Builds on main branch**: Creates build artifacts
-3. **Deploys to TestFlight**: When commit message contains `[beta]`
+### Release Cut Workflow (`.github/workflows/release-cut.yml`)
+
+Triggered manually to create a new release branch:
+
+1. Bumps the app version (minor increment)
+2. Creates a new release branch (`releases/v*`)
+3. Creates a PR to merge version update into the release branch
+
+### Release Build Workflow (`.github/workflows/release-build.yml`)
+
+Triggered automatically on pushes to `releases/*` branches:
+
+1. **Filters merge commits**: Automatically excludes merge commits from the triggered commits
+2. **Cherry-picks commits**: Creates a sync branch with only regular commits
+3. **Creates PR to main**: Opens a pull request to merge changes back to main
+4. Supports both push events and manual workflow dispatch
+
+**Key Features:**
+- Automatic merge commit filtering using `filter_merge_commits` lane
+- Supports specific commit targeting via workflow triggers
+- Clean repository handling (auto-discards auto-generated files)
+- Detailed logging for troubleshooting
 
 ### Required Secrets
 
 Add these secrets to your GitHub repository:
 
-- `FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD`: App-specific password for your Apple ID
-- `FASTLANE_SESSION`: Fastlane session for App Store Connect
-- `MATCH_PASSWORD`: Password for your Match certificates repository
+- `PULL_REQUEST_API_TOKEN`: GitHub token with PR creation permissions
+- `FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD`: App-specific password for your Apple ID (if using TestFlight/App Store)
+- `FASTLANE_SESSION`: Fastlane session for App Store Connect (if using TestFlight/App Store)
+- `MATCH_PASSWORD`: Password for your Match certificates repository (if using Match)
+
+### Required Variables
+
+Add these repository variables:
+
+- `X_SCHEME`: Xcode scheme name (e.g., "SampleiOSApp")
+- `X_PROJ_DIR`: Xcode project path (e.g., "SampleiOSApp.xcodeproj")
+- `X_WORKSPACE_DIR`: Xcode workspace path (if applicable)
 
 ## Development Workflow
 
 ### For Feature Development
 
-1. Create a feature branch from `develop`
+1. Create a feature branch from `main`
 2. Make your changes
 3. Run tests locally: `bundle exec fastlane test`
-4. Create a pull request to `develop`
+4. Create a pull request to `main`
 5. CI will automatically run tests
 
 ### For Releases
 
-1. Merge `develop` to `main`
-2. For TestFlight: Include `[beta]` in commit message
-3. For App Store: Run `bundle exec fastlane release`
+#### 1. Cut a New Release
+
+Manually trigger the "Release Cut" workflow from GitHub Actions, or run locally:
+
+```bash
+bundle exec fastlane cut_release
+```
+
+This will:
+- Bump the app version (minor increment)
+- Create a new `releases/v*` branch
+- Create a PR with the version update
+
+#### 2. Merge Version Update PR
+
+Review and merge the PR into the release branch. This triggers the Release Build workflow.
+
+#### 3. Automatic Sync to Main
+
+The Release Build workflow automatically:
+- Filters out merge commits from the pushed changes
+- Cherry-picks regular commits to a new sync branch
+- Creates a PR to merge changes back to `main`
+
+#### 4. Manual Sync (if needed)
+
+If you need to manually sync specific commits:
+
+```bash
+# From the release branch
+bundle exec fastlane create_pr_from_release_branch_v2
+```
+
+Or pass specific commits:
+
+```bash
+bundle exec fastlane create_pr_from_release_branch_v2 commits:"hash1,hash2,hash3"
+```
+
+### Release Branch Naming
+
+Release branches follow the pattern: `releases/vX.Y.Z`
+
+Example: `releases/v1.9.0`
 
 ## Application Features
 
@@ -298,6 +383,40 @@ Update the deployment lanes in `fastlane/Fastfile`:
    # Run tests with verbose output
    bundle exec fastlane test --verbose
    ```
+
+4. **Dirty Repository Error in CI**:
+   
+   If you see "Git repository is dirty" errors:
+   - The workflow automatically discards changes to auto-generated files (`fastlane/README.md`)
+   - The `FASTLANE_SKIP_DOCS=1` environment variable prevents Fastlane from auto-updating docs
+   - Ensure `.bundle/` is in `.gitignore`
+
+5. **Merge Commit Filtering Issues**:
+   
+   If merge commits aren't being filtered correctly:
+   ```bash
+   # Manually test the filter
+   bundle exec fastlane filter_merge_commits commits:"hash1,hash2,hash3"
+   ```
+   
+   The lane checks commit parent count using `git cat-file -p`. Ensure commits exist locally:
+   ```bash
+   git fetch --all
+   ```
+
+6. **Cherry-pick Conflicts**:
+   
+   If cherry-picking fails during the sync process:
+   - The workflow automatically aborts failed cherry-picks
+   - Review the commit that failed in the CI logs
+   - You may need to manually resolve conflicts and create the PR
+
+7. **Missing Commits in Workflow**:
+   
+   If the workflow doesn't detect commits to sync:
+   - Ensure `fetch-depth: 0` is set in the checkout action
+   - Check that commits are pushed to the release branch
+   - For manual dispatch, it uses `git rev-list origin/main..HEAD`
 
 ### Getting Help
 

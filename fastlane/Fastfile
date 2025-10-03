@@ -1,18 +1,3 @@
-# This file contains the fastlane.tools configuration
-# You can find the documentation at https://docs.fastlane.tools
-#
-# For a list of all available actions, check out
-#
-#     https://docs.fastlane.tools/actions
-#
-# For a list of all available plugins, check out
-#
-#     https://docs.fastlane.tools/plugins/available-plugins
-#
-
-# Uncomment the line if you want fastlane to automatically update itself
-# update_fastlane
-
 default_platform(:ios)
 
 platform :ios do
@@ -59,8 +44,6 @@ platform :ios do
     increment_version_number(bump_type: "minor")
   end
 
-
-  
   desc "Create pull request from release branch to develop"
   lane :create_pr_from_release_branch do
     default_branch = "main"
