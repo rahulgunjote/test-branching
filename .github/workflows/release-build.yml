@@ -4,6 +4,11 @@ on:
   push:
     branches: [ releases/* ]
   workflow_dispatch:
+    inputs:
+      release_branch:
+        description: 'Release branch to build from (e.g., releases/v1.0.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -14,6 +19,7 @@ env:
   X_SCHEME: ${{ vars.X_SCHEME }}
   X_PROJ_DIR: ${{ vars.X_PROJ_DIR }}
   X_WORKSPACE_DIR: ${{ vars.X_WORKSPACE_DIR }}
+  RELEASE_BRANCH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_branch || github.ref }}
 
 jobs:
   # test:
@@ -87,8 +93,8 @@ jobs:
         - name: Checkout
           uses: actions/checkout@v4
           with:
+            ref: ${{ env.RELEASE_BRANCH }}
             token: ${{ secrets.GITHUB_TOKEN }}
-            fetch-depth: 0
             
         - name: Setup Ruby
           uses: ruby/setup-ruby@v1

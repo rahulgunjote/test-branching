@@ -243,7 +243,7 @@ platform :ios do
     
     if commits_input.empty?
       UI.message("No commits provided to filter")
-      return ""
+      exit 0
     end
 
     UI.message("Filtering merge commits from provided commits")
