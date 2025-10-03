@@ -105,19 +105,16 @@ jobs:
           run: |
             if [ "${{ github.event_name }}" = "push" ]; then
               # For push events, get commits from the push
-              COMMITS=$(echo '${{ toJson(github.event.commits) }}' | jq -r '.[].id' | tr '\n' ',' | sed 's/,$//')
+              TRIGGER_COMMITS=$(echo '${{ toJson(github.event.commits) }}' | jq -r '.[].id' | tr '\n' ',' | sed 's/,$//')
             else
-              # For workflow_dispatch, get the latest commit
-              COMMITS=$(git rev-parse HEAD)
+              # For workflow_dispatch, get all commits from origin/main to current branch
+              TRIGGER_COMMITS=$(git rev-list origin/main..HEAD --reverse | tr '\n' ',' | sed 's/,$//')
             fi
-            echo "commits=$COMMITS" >> $GITHUB_OUTPUT
-            echo "Triggering commits: $COMMITS"
-        
+            bundle exec fastlane filter_merge_commits commits:"$TRIGGER_COMMITS"
+
         - name: Create pull request
-          env:
-            TRIGGER_COMMITS: ${{ steps.get_commits.outputs.commits }}
           run: |
-            bundle exec fastlane create_pr_from_release_branch_v2
-    
-          
+            COMMITS=${{ steps.get_commits.outputs.commits }}
+            bundle exec fastlane create_pr_from_release_branch_v2 commits:"$COMMITS"
+
     

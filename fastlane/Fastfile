@@ -237,8 +237,45 @@ platform :ios do
     UI.success("✅ Pull request created with #{cherry_picked_commits.length} cherry-picked commits")
   end
 
+  desc "Filter out merge commits from a list of commit SHAs"
+  lane :filter_merge_commits do |options|
+    commits_input = options[:commits] || ""
+    
+    if commits_input.empty?
+      UI.message("No commits provided to filter")
+      return ""
+    end
+
+    UI.message("Filtering merge commits from provided commits")
+    
+    # Split commits by comma and filter out merge commits
+    commits = commits_input.split(',').map(&:strip).reject(&:empty?)
+    
+    non_merge_commits = []
+    commits.each do |commit|
+      begin
+        # Check if commit has more than one parent (merge commit)
+        parent_count = sh("git rev-list --count #{commit}^..#{commit} 2>/dev/null || echo '1'").strip.to_i
+        
+        if parent_count == 1
+          non_merge_commits << commit
+          UI.message("  ✓ #{commit} - regular commit")
+        else
+          UI.message("  ✗ #{commit} - merge commit (skipped)")
+        end
+      rescue => e
+        UI.message("  ? #{commit} - could not determine (skipped): #{e.message}")
+      end
+    end
+    
+    filtered_commits = non_merge_commits.join(',')
+    UI.success("Filtered #{non_merge_commits.length} regular commits from #{commits.length} total")
+    sh "echo \"commits=$COMMITS\" >> $GITHUB_OUTPUT" if is_ci
+    filtered_commits
+  end
+
   desc "Create pull request from release branch to develop (streamlined)"
-  lane :create_pr_from_release_branch_v2 do
+  lane :create_pr_from_release_branch_v2 do |options|
     default_branch = "main"
     repo_full_name = "rahulgunjote/test-branching"
     release_branch = sh("git rev-parse --abbrev-ref HEAD").strip
@@ -247,6 +284,7 @@ platform :ios do
       target: ENV["X_IPA_NAME"],
       configuration: "Release"
     )
+    UI.message("Release version: #{release_version}")
     ensure_git_branch(branch: release_branch)
     ensure_git_status_clean
 
@@ -255,8 +293,7 @@ platform :ios do
     sh("git fetch origin #{default_branch}")
 
     # Check if specific commits were provided via environment variable
-    trigger_commits = ENV["TRIGGER_COMMITS"]
-    
+    trigger_commits = options[:commits]
     if trigger_commits && !trigger_commits.empty?
       # Use the specific commits passed from the workflow
       UI.message("Using commits provided by workflow trigger")
