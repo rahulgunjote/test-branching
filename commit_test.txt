@@ -6,3 +6,4 @@ v1.10.0 - Bug fix commit 6
 v1.10.0 - Bug fix commit 7
 v1.10.0 - Bug fix commit 8
 v1.10.0 - Bug fix commit 9
+v1.10.0 - Bug fix commit 10
