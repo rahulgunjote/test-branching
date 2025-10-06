@@ -171,15 +171,12 @@ def filter_merge_commits(commits)
     non_merge_commits = []
     commits.each do |commit|
       begin
-        # First verify the commit exists locally
         commit_exists = sh("git cat-file -t #{commit} 2>/dev/null || echo 'missing'").strip
-
         if commit_exists == "missing"
           UI.message("  ? #{commit} - commit not found locally (skipped)")
           next
         end
 
-        # Count parent commits using git cat-file (merge commits have 2+ parents)
         parent_count = sh("git cat-file -p #{commit} | grep '^parent' | wc -l 2>/dev/null || echo '0'").strip.to_i
         if parent_count <= 1
           non_merge_commits << commit
@@ -241,14 +238,9 @@ def filter_merge_commits(commits)
     if commits.empty?
       UI.message("No commits found to cherry-pick. Nothing to do.")
       return
-    else
-      UI.message("Found #{commits.length} commit(s) to cherry-pick:")
-      commits.each_with_index do |commit, index|
-        commit_info = sh("git log --format='%h %s' -1 #{commit}").strip
-        UI.message("  #{index + 1}. #{commit_info}")
-      end
     end
 
+    UI.message("Found #{commits.length} commit(s) to cherry-pick:")
     cherry_pick_branch = "temp-sync-release-#{release_version}-to-#{default_branch}-#{Time.now.utc.strftime('%Y%m%d%H%M%S')}"
     UI.message("Creating branch '#{cherry_pick_branch}' based on origin/#{default_branch}")
 
@@ -257,6 +249,7 @@ def filter_merge_commits(commits)
 
     commits.each do |commit|
       UI.message("Cherry-picking #{commit}...")
+      sh("git log --format='%h %s' -1 #{commit}").strip
       begin
         sh("git cherry-pick #{commit}")
       rescue => e
