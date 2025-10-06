@@ -161,19 +161,12 @@ platform :ios do
     UI.success("✅ Pull request created with #{cherry_picked_commits.length} cherry-picked commits")
   end
 
-  desc "Filter out merge commits from a list of commit SHAs"
-  lane :filter_merge_commits do |options|
-    commits_input = options[:commits] || ""
-
-    if commits_input.empty?
+def filter_merge_commits(commits)
+    if commits.nil? || commits.empty?
       UI.message("No commits provided to filter")
-      exit 0
+      return []
     end
-
     UI.message("Filtering merge commits from provided commits")
-
-    # Split commits by comma and filter out merge commits
-    commits = commits_input.split(',').map(&:strip).reject(&:empty?)
 
     non_merge_commits = []
     commits.each do |commit|
@@ -188,7 +181,6 @@ platform :ios do
 
         # Count parent commits using git cat-file (merge commits have 2+ parents)
         parent_count = sh("git cat-file -p #{commit} | grep '^parent' | wc -l 2>/dev/null || echo '0'").strip.to_i
-
         if parent_count <= 1
           non_merge_commits << commit
           UI.message("  ✓ #{commit} - regular commit (#{parent_count} parent)")
@@ -200,10 +192,8 @@ platform :ios do
       end
     end
 
-    filtered_commits = non_merge_commits.join(',')
     UI.success("Filtered #{non_merge_commits.length} regular commits from #{commits.length} total")
-    sh "echo \"commits=#{filtered_commits}\" >> $GITHUB_OUTPUT" if is_ci
-    filtered_commits
+    non_merge_commits
   end
 
   desc "Create pull request from release branch to develop (streamlined)"
@@ -234,12 +224,13 @@ platform :ios do
     sh("git fetch origin #{default_branch}")
 
     # Check if specific commits were provided via environment variable
-    trigger_commits = options[:commits]
-    if trigger_commits && !trigger_commits.empty?
+    commits_input = options[:commits]
+    if commits_input && !commits_input.empty?
       # Use the specific commits passed from the workflow
       UI.message("Using commits provided by workflow trigger")
-      commits = trigger_commits.split(',').map(&:strip).reject(&:empty?)
+      commits = commits_input.split(',').map(&:strip).reject(&:empty?)
       UI.message("Trigger commits: #{commits.join(', ')}")
+      commits = filter_merge_commits(commits)
     else
       # Fallback to discovering commits between branches
       UI.message("No specific commits provided, discovering commits between branches")

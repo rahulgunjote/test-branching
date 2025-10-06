@@ -107,23 +107,18 @@ jobs:
           run: |
             bundle install
         
-        - name: Get triggering commits
+        - name: Get push commits
           id: get_commits
           run: |
-            # Ensure we have all refs
-            git fetch origin
             if [ "${{ github.event_name }}" = "push" ]; then
-              # For push events, get commits from the push
-              TRIGGER_COMMITS=$(echo '${{ toJson(github.event.commits) }}' | jq -r '.[].id' | tr '\n' ',' | sed 's/,$//')
+              COMMITS=$(echo '${{ toJson(github.event.commits) }}' | jq -r '.[].id' | tr '\n' ',' | sed 's/,$//')
             else
-              # For workflow_dispatch, get all commits from origin/main to current branch
-              TRIGGER_COMMITS=$(git rev-list origin/main..HEAD --reverse | tr '\n' ',' | sed 's/,$//')
+              COMMITS=""
             fi
-            bundle exec fastlane filter_merge_commits commits:"$TRIGGER_COMMITS"
+            echo "commits=${COMMITS}" >> $GITHUB_OUTPUT
 
         - name: Create pull request
           run: |
-            COMMITS=${{ steps.get_commits.outputs.commits }}
-            bundle exec fastlane create_pr_from_release_branch_v2 commits:"$COMMITS"
+            bundle exec fastlane create_pr_from_release_branch_v2 commits:"${{ steps.get_commits.outputs.commits }}"
 
     
