@@ -171,12 +171,14 @@ def filter_merge_commits(commits)
     non_merge_commits = []
     commits.each do |commit|
       begin
-        commit_exists = sh("git cat-file -t #{commit} 2>/dev/null || echo 'missing'", log: false).strip
+        UI.message("Checking if #{commit} exists in the repository")
+        commit_exists = sh("git cat-file -t #{commit} 2>/dev/null || echo 'missing'").strip
         if commit_exists == "missing"
           UI.message("  ? #{commit} - commit not found locally (skipped)")
           next
         end
-        parent_count = sh("git cat-file -p #{commit} | grep '^parent' | wc -l 2>/dev/null || echo '0'", log: false).strip.to_i
+        UI.message("Checking if #{commit} is a merge commit by counting parents")
+        parent_count = sh("git cat-file -p #{commit} | grep '^parent' | wc -l 2>/dev/null || echo '0'").strip.to_i
         if parent_count <= 1
           non_merge_commits << commit
           UI.message("  ✓ #{commit} - regular commit (#{parent_count} parent)")
@@ -206,7 +208,8 @@ def filter_merge_commits(commits)
     ensure_git_branch(branch: release_branch)
 
     # Discard any uncommitted changes before switching branches
-    git_status = sh("git status --porcelain", log: false).strip
+    UI.message("Checking for uncommitted changes...")
+    git_status = sh("git status --porcelain").strip
     if !git_status.empty?
       UI.important("Found uncommitted changes, discarding them...")
       sh("git reset --hard HEAD")
