@@ -171,13 +171,12 @@ def filter_merge_commits(commits)
     non_merge_commits = []
     commits.each do |commit|
       begin
-        commit_exists = sh("git cat-file -t #{commit} 2>/dev/null || echo 'missing'").strip
+        commit_exists = sh("git cat-file -t #{commit} 2>/dev/null || echo 'missing'", log: false).strip
         if commit_exists == "missing"
           UI.message("  ? #{commit} - commit not found locally (skipped)")
           next
         end
-
-        parent_count = sh("git cat-file -p #{commit} | grep '^parent' | wc -l 2>/dev/null || echo '0'").strip.to_i
+        parent_count = sh("git cat-file -p #{commit} | grep '^parent' | wc -l 2>/dev/null || echo '0'", log: false).strip.to_i
         if parent_count <= 1
           non_merge_commits << commit
           UI.message("  ✓ #{commit} - regular commit (#{parent_count} parent)")
@@ -207,8 +206,7 @@ def filter_merge_commits(commits)
     ensure_git_branch(branch: release_branch)
 
     # Discard any uncommitted changes before switching branches
-    UI.message("Checking for uncommitted changes...")
-    git_status = sh("git status --porcelain").strip
+    git_status = sh("git status --porcelain", log: false).strip
     if !git_status.empty?
       UI.important("Found uncommitted changes, discarding them...")
       sh("git reset --hard HEAD")
@@ -216,7 +214,7 @@ def filter_merge_commits(commits)
       UI.success("Repository cleaned")
     end
 
-    UI.message("Preparing cherry-pick branch from '#{release_branch}' into '#{default_branch}'")
+    UI.message("Preparing cherry-pick branch to sync '#{release_branch}' into '#{default_branch}'")
 
     sh("git fetch origin #{default_branch}")
 
