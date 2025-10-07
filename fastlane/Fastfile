@@ -178,7 +178,10 @@ def filter_merge_commits(commits)
           next
         end
         UI.message("Checking if #{commit} is a merge commit by counting parents")
-        parent_count = sh("git cat-file -p #{commit} | grep '^parent' | wc -l 2>/dev/null || echo '0'").strip.to_i
+        parent_hashes = sh("git show --format='%P' -s #{commit} 2>/dev/null || echo ''").strip
+        UI.message("Parent hashes for #{commit}: '#{parent_hashes}'")
+        parent_count = parent_hashes.empty? ? 0 : parent_hashes.split(' ').length
+        # parent_count = sh("git cat-file -p #{commit} | grep '^parent' | wc -l 2>/dev/null || echo '0'").strip.to_i
         if parent_count <= 1
           non_merge_commits << commit
           UI.message("  ✓ #{commit} - regular commit (#{parent_count} parent)")
