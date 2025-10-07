@@ -111,6 +111,9 @@ jobs:
           id: get_commits
           run: |
             if [ "${{ github.event_name }}" = "push" ]; then
+              echo github.event.commits
+              echo github.event
+
               COMMITS=$(echo '${{ toJson(github.event.commits) }}' | jq -r '.[].id' | tr '\n' ',' | sed 's/,$//')
             else
               COMMITS=""
