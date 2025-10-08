@@ -241,7 +241,7 @@ def filter_merge_commits(commits)
 
     if commits.empty?
       UI.message("No commits found to cherry-pick. Nothing to do.")
-      return
+      next
     end
 
     UI.message("Found #{commits.length} commit(s) to cherry-pick:")
@@ -272,7 +272,7 @@ def filter_merge_commits(commits)
 
     if successfully_picked == 0
       UI.message("No commits were successfully cherry-picked (all were either empty or already applied). Skipping PR creation.")
-      return
+      next
     end
 
     UI.message("Successfully cherry-picked #{successfully_picked} out of #{commits.length} commit(s)")
