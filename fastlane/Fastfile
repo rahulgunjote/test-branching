@@ -251,11 +251,13 @@ def filter_merge_commits(commits)
     sh("git checkout origin/#{default_branch}")
     sh("git checkout -B #{cherry_pick_branch}")
 
+    successfully_picked = 0
     commits.each do |commit|
       UI.message("Cherry-picking #{commit}...")
       sh("git log --format='%h %s' -1 #{commit}").strip
       begin
         sh("git cherry-pick #{commit}")
+        successfully_picked += 1
       rescue => e
         error_message = e.message 
         if error_message.include?("The previous cherry-pick is now empty") || error_message.include?("nothing to commit") || error_message.include?("empty commit")
@@ -268,10 +270,16 @@ def filter_merge_commits(commits)
       end
     end
 
+    if successfully_picked == 0
+      UI.message("No commits were successfully cherry-picked (all were either empty or already applied). Skipping PR creation.")
+      return
+    end
+
+    UI.message("Successfully cherry-picked #{successfully_picked} out of #{commits.length} commit(s)")
     sh("git push -u origin #{cherry_pick_branch}")
 
     pr_title = "[XBMIOS-1147] Sync #{release_branch} into #{default_branch}"
-    pr_body = "Cherry-picked #{commits.length} commit(s) from #{release_branch}:\n\n"
+    pr_body = "Cherry-picked #{successfully_picked} commit(s) from #{release_branch}:\n\n"
     commits.each_with_index do |commit, index|
       summary = sh("git log --oneline -1 #{commit}").strip
       pr_body << "#{index + 1}. #{summary}\n"
@@ -288,7 +296,7 @@ def filter_merge_commits(commits)
       labels: ["must_merge_before_next_release"]
     )
 
-    UI.success("Pull request created for #{commits.length} commit(s)")
+    UI.success("Pull request created for #{successfully_picked} commit(s)")
   end
 
   desc "Cut release with new release branch"
