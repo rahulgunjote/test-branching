@@ -200,7 +200,6 @@ def filter_merge_commits(commits)
   desc "Create pull request from release branch to develop (streamlined)"
   lane :create_pr_from_release_branch_v2 do |options|
     default_branch = "main"
-    repo_full_name = "rahulgunjote/test-branching"
     release_branch = sh("git rev-parse --abbrev-ref HEAD").strip
     release_version = get_version_number(
       xcodeproj: ENV["X_PROJ_DIR"],
@@ -286,7 +285,7 @@ def filter_merge_commits(commits)
     end
 
     create_pull_request(
-      repo: repo_full_name,
+      repo: "rahulgunjote/test-branching",
       title: pr_title,
       head: cherry_pick_branch,
       base: default_branch,
