@@ -259,8 +259,8 @@ def filter_merge_commits(commits)
       rescue => e
         error_message = e.message 
         if error_message.include?("The previous cherry-pick is now empty") || error_message.include?("nothing to commit") || error_message.include?("empty commit")
+          UI.important("Cherry-pick resulted in an empty commit for #{commit}. It may have already been applied. Skipping.")
           sh("git cherry-pick --skip")
-          UI.important("Cherry-pick resulted in an empty commit for #{commit}. It may have already been applied.\nError: #{error_message}")
         else
           sh("git cherry-pick --abort")
           UI.important("Failed to cherry-pick commit #{commit}: #{error_message}")
