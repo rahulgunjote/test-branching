@@ -1,4 +1,4 @@
-name: Release Cut
+name: ZZ - Release Cut
 
 on:
   workflow_dispatch:
